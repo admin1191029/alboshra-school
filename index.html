@@ -19,6 +19,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-storage-compat.js"></script>
 <script>
 // ══════════════════════════════════════════════
 // Firebase Configuration & Database Layer
@@ -32,9 +33,10 @@ const _fbConfig = {
   appId:             "1:699668127910:web:97184fa42ed31ba009d467"
 };
 firebase.initializeApp(_fbConfig);
-const _db   = firebase.firestore();
-const _auth = firebase.auth();
-let   _uid  = null;
+const _db      = firebase.firestore();
+const _auth    = firebase.auth();
+const _storage = firebase.storage();
+let   _uid     = null;
 
 // الاستماع لتغيير حالة تسجيل الدخول
 _auth.onAuthStateChanged(async function(user) {
@@ -6413,7 +6415,7 @@ ${items.length===0?`
         </div>
         <div style="font-weight:800;font-size:0.95rem;color:var(--ink);margin-bottom:4px;">${r.title}</div>
         ${r.desc?`<div style="font-size:0.82rem;color:var(--muted);margin-bottom:8px;line-height:1.5;">${r.desc}</div>`:''}
-        ${r.fileData?`<button onclick="openResourceFile('${r.id}')" 
+        ${(r.fileUrl||r.fileData)?`<button onclick="openResourceFile('${r.id}')"
           style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:8px;background:linear-gradient(135deg,var(--sky),var(--plum));border:none;color:white;font-size:0.82rem;font-weight:700;cursor:pointer;transition:all 0.15s;font-family:'Tajawal',sans-serif;"
           onmouseenter="this.style.transform='scale(1.02)'" onmouseleave="this.style.transform=''">
           📂 فتح الملف
@@ -6470,22 +6472,22 @@ function openAddResource(id) {
   <div class="fg">
     <label>طريقة الإضافة</label>
     <div style="display:flex;gap:10px;margin-bottom:12px;">
-      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:8px 14px;background:${r&&r.fileData?'rgba(21,101,192,0.08)':'rgba(21,101,192,0.15)'};border:1.5px solid ${r&&r.fileData?'var(--border)':'var(--sky)'};border-radius:10px;">
-        <input type="radio" name="resSourceType" value="url" ${r&&r.fileData?'':'checked'} onchange="toggleResSourceType('url')"> رابط خارجي
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:8px 14px;background:${r&&(r.fileUrl||r.fileData)?'rgba(21,101,192,0.08)':'rgba(21,101,192,0.15)'};border:1.5px solid ${r&&(r.fileUrl||r.fileData)?'var(--border)':'var(--sky)'};border-radius:10px;">
+        <input type="radio" name="resSourceType" value="url" ${r&&(r.fileUrl||r.fileData)?'':'checked'} onchange="toggleResSourceType('url')"> رابط خارجي
       </label>
-      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:8px 14px;background:${r&&r.fileData?'rgba(21,101,192,0.15)':'rgba(21,101,192,0.08)'};border:1.5px solid ${r&&r.fileData?'var(--sky)':'var(--border)'};border-radius:10px;">
-        <input type="radio" name="resSourceType" value="file" ${r&&r.fileData?'checked':''} onchange="toggleResSourceType('file')"> رفع ملف
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:8px 14px;background:${r&&(r.fileUrl||r.fileData)?'rgba(21,101,192,0.15)':'rgba(21,101,192,0.08)'};border:1.5px solid ${r&&(r.fileUrl||r.fileData)?'var(--sky)':'var(--border)'};border-radius:10px;">
+        <input type="radio" name="resSourceType" value="file" ${r&&(r.fileUrl||r.fileData)?'checked':''} onchange="toggleResSourceType('file')"> رفع ملف
       </label>
     </div>
   </div>
-  <div class="fg" id="resUrlGroup" style="display:${r&&r.fileData?'none':'block'};">
+  <div class="fg" id="resUrlGroup" style="display:${r&&(r.fileUrl||r.fileData)?'none':'block'};">
     <label>الرابط (URL)</label>
-    <input type="url" id="resUrl" placeholder="https://..." value="${r&&!r.fileData?r.url:''}" dir="ltr" />
+    <input type="url" id="resUrl" placeholder="https://..." value="${r&&!(r.fileUrl||r.fileData)?r.url:''}" dir="ltr" />
   </div>
-  <div class="fg" id="resFileGroup" style="display:${r&&r.fileData?'block':'none'};">
-    <label>اختر ملف (PDF / فيديو / صورة)</label>
-    <input type="file" id="resFile" accept=".pdf,video/*,image/*,.doc,.docx,.ppt,.pptx,.xls,.xlsx" onchange="handleResFileSelect(this)" style="padding:10px;background:rgba(21,101,192,0.06);border:1.5px dashed var(--border2);border-radius:10px;width:100%;" />
-    <div id="resFileInfo" style="margin-top:8px;font-size:0.82rem;color:var(--muted);display:${r&&r.fileData?'block':'none'};">${r&&r.fileData?'📎 ملف محمّل: '+r.fileName:''}</div>
+  <div class="fg" id="resFileGroup" style="display:${r&&(r.fileUrl||r.fileData)?'block':'none'};">
+    <label>اختر ملف (PDF / ورد / فيديو / صورة — حتى 100MB)</label>
+    <input type="file" id="resFile" accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,video/*,image/*" onchange="handleResFileSelect(this)" style="padding:10px;background:rgba(21,101,192,0.06);border:1.5px dashed var(--border2);border-radius:10px;width:100%;" />
+    <div id="resFileInfo" style="margin-top:8px;font-size:0.82rem;color:var(--muted);display:${r&&(r.fileUrl||r.fileData)?'block':'none'};">${r&&(r.fileUrl||r.fileData)?'📎 ملف محمّل: '+(r.fileName||'')+(r.fileUrl?' ☁️':''):''}</div>
     <div id="resFileProgress" style="display:none;margin-top:8px;">
       <div style="background:var(--border);border-radius:8px;height:6px;overflow:hidden;">
         <div id="resProgressBar" style="background:linear-gradient(90deg,var(--sky),var(--mint));height:100%;width:0%;transition:width 0.3s;"></div>
@@ -6549,96 +6551,66 @@ function toggleResSourceType(type) {
 function handleResFileSelect(input) {
   const file = input.files[0];
   if(!file) return;
-  
-  // التحقق من حجم الملف (الحد الأقصى 10MB للتخزين المحلي)
-  const maxSize = 10 * 1024 * 1024; // 10MB
+
+  // الحد الأقصى 100MB (Firebase Storage يتعامل مع الملفات الكبيرة)
+  const maxSize = 100 * 1024 * 1024;
   if(file.size > maxSize) {
-    toast('حجم الملف كبير جداً! الحد الأقصى 10 ميجابايت', 'error');
+    toast('حجم الملف كبير جداً! الحد الأقصى 100 ميجابايت', 'error');
     input.value = '';
     return;
   }
-  
-  const progressDiv = document.getElementById('resFileProgress');
-  const progressBar = document.getElementById('resProgressBar');
-  const progressText = document.getElementById('resProgressText');
+
+  // تحديد نوع الملف
+  let fileType = 'other';
+  const ext = file.name.split('.').pop().toLowerCase();
+  if(ext === 'pdf') fileType = 'pdf';
+  else if(['mp4','webm','mov','avi','mkv','m4v'].includes(ext)) fileType = 'video';
+  else if(['jpg','jpeg','png','gif','webp','svg','bmp'].includes(ext)) fileType = 'image';
+  else if(['doc','docx','xls','xlsx','ppt','pptx'].includes(ext)) fileType = 'worksheet';
+
+  // حفظ الملف مباشرةً (سيُرفع عند الحفظ)
+  window._uploadedResFile = {
+    file: file,
+    name: file.name,
+    type: file.type,
+    size: file.size,
+    fileType: fileType
+  };
+
+  // تحديث نوع المورد تلقائياً
+  const typeSelect = document.getElementById('resType');
+  if(typeSelect) typeSelect.value = fileType;
+
+  // إظهار معلومات الملف
+  const sizeKB = Math.round(file.size / 1024);
+  const sizeText = sizeKB > 1024 ? (sizeKB/1024).toFixed(1) + ' MB' : sizeKB + ' KB';
   const fileInfo = document.getElementById('resFileInfo');
-  
-  progressDiv.style.display = 'block';
-  progressBar.style.width = '0%';
-  progressText.textContent = 'جاري قراءة الملف...';
-  
-  const reader = new FileReader();
-  
-  reader.onprogress = function(e) {
-    if(e.lengthComputable) {
-      const percent = Math.round((e.loaded / e.total) * 100);
-      progressBar.style.width = percent + '%';
-      progressText.textContent = 'جاري التحميل... ' + percent + '%';
-    }
-  };
-  
-  reader.onload = function(e) {
-    progressBar.style.width = '100%';
-    progressText.textContent = 'تم التحميل بنجاح ✅';
-    
-    // تحديد نوع الملف
-    let fileType = 'other';
-    const ext = file.name.split('.').pop().toLowerCase();
-    if(ext === 'pdf') fileType = 'pdf';
-    else if(['mp4','webm','mov','avi','mkv','m4v'].includes(ext)) fileType = 'video';
-    else if(['jpg','jpeg','png','gif','webp','svg','bmp'].includes(ext)) fileType = 'image';
-    else if(['doc','docx','xls','xlsx','ppt','pptx'].includes(ext)) fileType = 'worksheet';
-    
-    // حفظ بيانات الملف
-    window._uploadedResFile = {
-      data: e.target.result,
-      name: file.name,
-      type: file.type,
-      size: file.size,
-      fileType: fileType
-    };
-    
-    // تحديث نوع المورد تلقائياً
-    const typeSelect = document.getElementById('resType');
-    if(typeSelect) typeSelect.value = fileType;
-    
-    // إظهار معلومات الملف
-    const sizeKB = Math.round(file.size / 1024);
-    const sizeText = sizeKB > 1024 ? (sizeKB/1024).toFixed(1) + ' MB' : sizeKB + ' KB';
-    fileInfo.innerHTML = '📎 ' + file.name + ' <span style="color:var(--muted2);">(' + sizeText + ')</span>';
-    fileInfo.style.display = 'block';
-    
-    setTimeout(() => {
-      progressDiv.style.display = 'none';
-    }, 1500);
-  };
-  
-  reader.onerror = function() {
-    progressText.textContent = 'حدث خطأ في قراءة الملف!';
-    progressBar.style.background = 'var(--ember)';
-    toast('فشل في قراءة الملف', 'error');
-  };
-  
-  reader.readAsDataURL(file);
+  fileInfo.innerHTML = '📎 ' + file.name + ' <span style="color:var(--muted2);">(' + sizeText + ')</span>';
+  fileInfo.style.display = 'block';
+
+  // إخفاء شريط التقدم حتى بدء الرفع الفعلي
+  const progressDiv = document.getElementById('resFileProgress');
+  if(progressDiv) progressDiv.style.display = 'none';
 }
 
-function saveResource(){
+async function saveResource(){
   const title = document.getElementById('resTitle').value.trim();
   if(!title){ toast('اكتب عنواناً للمورد','error'); return; }
-  
+
   // التحقق من نوع المصدر (رابط أو ملف)
   const sourceType = document.querySelector('input[name="resSourceType"]:checked')?.value || 'url';
   const urlValue = document.getElementById('resUrl').value.trim();
-  
+
   // لو اختار ملف ولا يوجد ملف مرفوع ولا ملف سابق
   const existingRes = window._editResId ? S.resources.find(r=>r.id===window._editResId) : null;
-  if(sourceType === 'file' && !window._uploadedResFile && !(existingRes && existingRes.fileData)) {
+  if(sourceType === 'file' && !window._uploadedResFile && !(existingRes && (existingRes.fileUrl||existingRes.fileData))) {
     toast('الرجاء اختيار ملف للرفع', 'error');
     return;
   }
   
+  const resId = window._editResId || genId();
   const obj = {
-    id: window._editResId || genId(),
+    id:    resId,
     title,
     type:  document.getElementById('resType').value,
     subId: document.getElementById('resSub').value,
@@ -6646,26 +6618,66 @@ function saveResource(){
     desc:  document.getElementById('resDesc').value.trim(),
     date:  window._editResId ? (S.resources.find(r=>r.id===window._editResId)?.date||today()) : today(),
   };
-  
-  // إضافة بيانات الملف إذا كان مرفوعاً
+
+  // رفع الملف إلى Firebase Storage إذا وُجد
   if(sourceType === 'file') {
-    if(window._uploadedResFile) {
-      obj.fileData = window._uploadedResFile.data;
-      obj.fileName = window._uploadedResFile.name;
-      obj.fileType = window._uploadedResFile.type;
-      obj.fileSize = window._uploadedResFile.size;
-    } else if(existingRes && existingRes.fileData) {
-      // الاحتفاظ بالملف القديم إذا لم يتم رفع ملف جديد
-      obj.fileData = existingRes.fileData;
-      obj.fileName = existingRes.fileName;
-      obj.fileType = existingRes.fileType;
-      obj.fileSize = existingRes.fileSize;
+    if(window._uploadedResFile && window._uploadedResFile.file) {
+      // إظهار شريط التقدم
+      const progressDiv = document.getElementById('resFileProgress');
+      const progressBar = document.getElementById('resProgressBar');
+      const progressText = document.getElementById('resProgressText');
+      if(progressDiv) { progressDiv.style.display='block'; progressBar.style.width='0%'; progressText.textContent='جاري الرفع...'; }
+
+      const saveBtn = document.querySelector('#mbRes .btn-sky');
+      if(saveBtn) { saveBtn.disabled=true; saveBtn.textContent='⏳ جاري الرفع...'; }
+
+      try {
+        const f = window._uploadedResFile.file;
+        const safeName = f.name.replace(/[^a-zA-Z0-9._؀-ۿ-]/g, '_');
+        const storePath = 'teachers/' + _uid + '/resources/' + resId + '/' + safeName;
+        const ref = _storage.ref(storePath);
+        const uploadTask = ref.put(f);
+
+        await new Promise((resolve, reject) => {
+          uploadTask.on('state_changed',
+            snap => {
+              const pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
+              if(progressBar) progressBar.style.width = pct + '%';
+              if(progressText) progressText.textContent = 'جاري الرفع... ' + pct + '%';
+            },
+            reject,
+            resolve
+          );
+        });
+
+        const downloadURL = await ref.getDownloadURL();
+        obj.fileUrl  = downloadURL;
+        obj.fileName = f.name;
+        obj.fileType = f.type;
+        obj.fileSize = f.size;
+        obj.storePath = storePath;
+        if(progressText) progressText.textContent = 'تم الرفع بنجاح ✅';
+      } catch(e) {
+        console.warn('[Storage] upload error', e);
+        toast('فشل رفع الملف: ' + (e.message||''), 'error');
+        if(saveBtn) { saveBtn.disabled=false; saveBtn.textContent='حفظ'; }
+        return;
+      }
+      if(saveBtn) { saveBtn.disabled=false; saveBtn.textContent='حفظ'; }
+
+    } else if(existingRes) {
+      // الاحتفاظ بمعلومات الملف القديم
+      if(existingRes.fileUrl)   obj.fileUrl   = existingRes.fileUrl;
+      if(existingRes.fileData)  obj.fileData  = existingRes.fileData; // دعم القديم
+      if(existingRes.fileName)  obj.fileName  = existingRes.fileName;
+      if(existingRes.fileType)  obj.fileType  = existingRes.fileType;
+      if(existingRes.fileSize)  obj.fileSize  = existingRes.fileSize;
+      if(existingRes.storePath) obj.storePath = existingRes.storePath;
     }
   }
-  
-  // مسح الملف المرفوع بعد الحفظ
+
   window._uploadedResFile = null;
-  
+
   if(window._editResId){
     const idx = S.resources.findIndex(r=>r.id===window._editResId);
     if(idx>=0) S.resources[idx]=obj;
@@ -6674,7 +6686,6 @@ function saveResource(){
     S.resources.push(obj);
   }
   save();
-  // تحديث badge
   const nb = document.getElementById('nb-resources');
   if(nb){ nb.textContent=S.resources.length; nb.style.display=S.resources.length>0?'flex':'none'; }
   closeM('mbRes');
@@ -6682,8 +6693,13 @@ function saveResource(){
   showPage('resources');
 }
 
-function deleteResource(id){
+async function deleteResource(id){
   if(!confirm('حذف هذا المورد؟')) return;
+  const r = S.resources.find(x=>x.id===id);
+  // حذف الملف من Firebase Storage إن وجد
+  if(r && r.storePath && _uid){
+    try{ await _storage.ref(r.storePath).delete(); }catch(e){ console.warn('[Storage] res delete error',e); }
+  }
   S.resources = S.resources.filter(r=>r.id!==id);
   save();
   const nb = document.getElementById('nb-resources');
@@ -6695,7 +6711,8 @@ function deleteResource(id){
 // فتح ملف المورد في نافذة جديدة
 function openResourceFile(id) {
   const r = S.resources.find(x=>x.id===id);
-  if(!r || !r.fileData) {
+  const fileSrc = r && (r.fileUrl || r.fileData);
+  if(!fileSrc) {
     toast('لا يوجد ملف مرفق', 'error');
     return;
   }
@@ -6736,11 +6753,11 @@ function openResourceFile(id) {
             <button class="btn btn-close" onclick="window.close()">✕ إغلاق</button>
           </div>
         </div>
-        <embed src="${r.fileData}" type="application/pdf" />
+        <embed src="${fileSrc}" type="application/pdf" />
         <script>
           function downloadFile() {
             const a = document.createElement('a');
-            a.href = '${r.fileData}';
+            a.href = '${fileSrc}';
             a.download = '${r.fileName}';
             a.click();
           }
@@ -6779,14 +6796,14 @@ function openResourceFile(id) {
         </div>
         <div class="video-wrap">
           <video controls autoplay>
-            <source src="${r.fileData}" type="${r.fileType||'video/mp4'}">
+            <source src="${fileSrc}" type="${r.fileType||'video/mp4'}">
             المتصفح لا يدعم تشغيل الفيديو
           </video>
         </div>
         <script>
           function downloadFile() {
             const a = document.createElement('a');
-            a.href = '${r.fileData}';
+            a.href = '${fileSrc}';
             a.download = '${r.fileName}';
             a.click();
           }
@@ -6824,12 +6841,12 @@ function openResourceFile(id) {
           </div>
         </div>
         <div class="img-wrap">
-          <img src="${r.fileData}" alt="${r.title}" />
+          <img src="${fileSrc}" alt="${r.title}" />
         </div>
         <script>
           function downloadFile() {
             const a = document.createElement('a');
-            a.href = '${r.fileData}';
+            a.href = '${fileSrc}';
             a.download = '${r.fileName}';
             a.click();
           }
@@ -6848,14 +6865,16 @@ function openResourceFile(id) {
 // تحميل ملف المورد
 function downloadResourceFile(id) {
   const r = S.resources.find(x=>x.id===id);
-  if(!r || !r.fileData) {
+  const fileSrc2 = r && (r.fileUrl || r.fileData);
+  if(!fileSrc2) {
     toast('لا يوجد ملف مرفق', 'error');
     return;
   }
   
   const a = document.createElement('a');
-  a.href = r.fileData;
+  a.href = fileSrc2;
   a.download = r.fileName || 'file';
+  a.target = '_blank';
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -14518,10 +14537,20 @@ function bagIdbDelete(key){
   }));
 }
 
-function bagSaveBooksManifest(subId){
+async function bagSaveBooksManifest(subId){
   const arr=BAG_BOOKS[subId]||[];
-  const manifest=arr.map(({id,name,size})=>({id,name,size}));
+  // نحفظ id, name, size, fileUrl, storePath (بدون blob URLs المؤقتة)
+  const manifest=arr.map(({id,name,size,fileUrl,storePath})=>({id,name,size,fileUrl:fileUrl||null,storePath:storePath||null}));
   try{ localStorage.setItem('bs_bag_books_manifest_'+subId, JSON.stringify(manifest)); }catch(e){}
+  // حفظ على Firestore للمزامنة عبر الأجهزة
+  if(_uid){
+    try{
+      await _db.doc('teachers/'+_uid+'/bagManifest/'+subId).set({
+        manifest,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }catch(e){ console.warn('[FB] bagManifest save error',e); }
+  }
 }
 
 function bagRevokeSubjectBooks(subId){
@@ -14536,14 +14565,45 @@ function bagRevokeAllBooks(){
 async function bagRestoreBooksForSubject(subId){
   bagRevokeSubjectBooks(subId);
   let manifest=[];
-  try{
-    const raw=localStorage.getItem('bs_bag_books_manifest_'+subId);
-    if(raw) manifest=JSON.parse(raw);
-  }catch(e){ manifest=[]; }
+
+  // أولاً: حاول تحميل الـ manifest من Firestore (أحدث وأشمل)
+  if(_uid){
+    try{
+      const snap=await _db.doc('teachers/'+_uid+'/bagManifest/'+subId).get();
+      if(snap.exists && Array.isArray(snap.data().manifest)){
+        manifest=snap.data().manifest;
+        // تحديث النسخة المحلية
+        try{ localStorage.setItem('bs_bag_books_manifest_'+subId, JSON.stringify(manifest)); }catch(e){}
+      }
+    }catch(e){ console.warn('[FB] bagManifest load error',e); }
+  }
+
+  // احتياط: من localStorage إذا لم يوجد شيء من Firestore
+  if(!manifest.length){
+    try{
+      const raw=localStorage.getItem('bs_bag_books_manifest_'+subId);
+      if(raw) manifest=JSON.parse(raw);
+    }catch(e){ manifest=[]; }
+  }
+
   if(!manifest.length){ BAG_BOOKS[subId]=[]; return; }
   BAG_BOOKS[subId]=[];
+
   for(const m of manifest){
     if(!m||m.id==null) continue;
+    // إذا كان الملف على Firebase Storage — استخدم الـ URL مباشرة
+    if(m.fileUrl){
+      BAG_BOOKS[subId].push({
+        id:m.id,
+        name:m.name||'ملف.pdf',
+        size:m.size||'',
+        url:m.fileUrl,
+        fileUrl:m.fileUrl,
+        storePath:m.storePath||null
+      });
+      continue;
+    }
+    // احتياط: حاول من IndexedDB (ملفات مرفوعة قديماً على الجهاز)
     try{
       const blob=await bagIdbGet(bagIdbStorageKey(subId,m.id));
       if(blob){
@@ -14600,22 +14660,41 @@ async function bagLoadBook(subId, input){
     const ok=file.type==='application/pdf' || /\.pdf$/i.test(file.name);
     if(!ok){ toast('تخطّي (ليس PDF): '+file.name,'error'); continue; }
     const id='b'+Date.now()+'_'+fi+'_'+Math.random().toString(36).replace(/[^a-z0-9]/gi,'').slice(0,10);
-    const key=bagIdbStorageKey(subId,id);
-    try{
-      await bagIdbPut(key,file);
-    }catch(e){
-      toast('تعذّر حفظ الملف على الجهاز: '+file.name,'error');
-      continue;
+
+    toast('⏳ جاري رفع: '+file.name,'');
+
+    // رفع إلى Firebase Storage أولاً
+    let fileUrl = null;
+    let storePath = null;
+    if(_uid && typeof _storage !== 'undefined'){
+      try{
+        const safeName = file.name.replace(/[^a-zA-Z0-9._؀-ۿ-]/g,'_');
+        storePath = 'teachers/'+_uid+'/bag/'+subId+'/'+id+'/'+safeName;
+        const ref = _storage.ref(storePath);
+        await ref.put(file);
+        fileUrl = await ref.getDownloadURL();
+      }catch(e){
+        console.warn('[Storage] bag upload error',e);
+        // الاحتياط: حفظ محلي فقط
+        storePath=null; fileUrl=null;
+      }
     }
+
+    // حفظ نسخة محلية أيضاً (لفتح الملف بدون انترنت)
+    const key=bagIdbStorageKey(subId,id);
+    try{ await bagIdbPut(key,file); }catch(e){}
+
     BAG_BOOKS[subId].push({
       id,
-      url:URL.createObjectURL(file),
+      url: fileUrl || URL.createObjectURL(file),
+      fileUrl,
+      storePath,
       name:file.name,
       size:(file.size/1024/1024).toFixed(2)+' MB'
     });
     added++;
   }
-  if(added) bagSaveBooksManifest(subId);
+  if(added) await bagSaveBooksManifest(subId);
   if(added) toast(added===1?'✅ تمت إضافة ملف PDF':'✅ تمت إضافة '+added+' ملفات','success');
   bagRenderBooks(subId);
 }
@@ -14670,10 +14749,16 @@ async function bagRemoveBook(subId, bookId){
   const arr=BAG_BOOKS[subId]||[];
   const b=arr.find(x=>String(x.id)===String(bookId));
   if(!b) return;
+  // حذف من IndexedDB
   try{ await bagIdbDelete(bagIdbStorageKey(subId,b.id)); }catch(e){}
-  try{ if(b.url) URL.revokeObjectURL(b.url); }catch(e){}
+  // تحرير blob URL المؤقت إن وجد
+  try{ if(b.url && b.url.startsWith('blob:')) URL.revokeObjectURL(b.url); }catch(e){}
+  // حذف من Firebase Storage إن وجد
+  if(b.storePath && _uid){
+    try{ await _storage.ref(b.storePath).delete(); }catch(e){ console.warn('[Storage] delete error',e); }
+  }
   BAG_BOOKS[subId]=arr.filter(x=>String(x.id)!==String(bookId));
-  bagSaveBooksManifest(subId);
+  await bagSaveBooksManifest(subId);
   bagRenderBooks(subId);
   if(typeof CM!=='undefined' && CM.open && CM.currentView==='slides' && String(subId)===String(CM.selectedSubId)) cmRenderBagBooksInClassroom();
   toast('تم حذف الملف','success');
